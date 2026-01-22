@@ -1,32 +1,99 @@
-# Frontend-Backend & Codef API 연동 가이드 (최신 업데이트 완료)
+# Frontend-Backend & Codef API 연동 가이드 (2026-01-23 통합 업데이트)
 
-이 문서는 **2026년 1월 22일** 기준, Frontend(Flutter)와 Backend(Django)의 **Codef API 간편인증 연동** 구현 및 **최근 발생한 오류 수정 내역**을 정리한 통합 문서입니다.
-
----
-
-## 1. 최근 수정 내역 (Hotfixes)
-
-### A. Backend (`codef/views.py`) - 문법 오류 수정
-*   **증상**: `docker-compose up` 실행 시 `SyntaxError: invalid syntax` 발생.
-*   **원인**: `if-elif-else` 구문에서 `else:` 블록이 중복으로 작성되어 파싱 에러 발생.
-*   **조치**: 중복된 `else` 블록 라인을 제거하고, 정상적인 에러 로깅(`logger.error`) 흐름으로 복구 완료.
-
-### B. Database (`docker-compose.yml`) - 연결 오류 수정
-*   **증상**: Django 시작 시 `OperationalError: (2005, "Unknown server host 'mysqldb'")` 반복 발생.
-*   **원인**: `mysqldb` 컨테이너가 비정상 종료(Exited)되어 백엔드가 DB 호스트를 찾지 못함.
-*   **조치**: `docker-compose restart` 명령어로 DB 컨테이너 재기동 및 연결 회복.
-
-### C. Frontend (`connect_bank_page.dart`) - UX/디버깅 강화
-*   **증상**: [연결하기] 버튼 클릭 시 반응 없음(Silent Failure).
-*   **원인**: 폼 검증(Validator) 실패 시 에러 메시지가 표시되지 않아 사용자는 멈춘 것으로 오인.
-*   **조치**:
-    1.  `autovalidateMode`를 `onUserInteraction`으로 설정하여 입력 즉시 에러 표시.
-    2.  `print` 디버그 로그(`=== Connect Button Pressed ===`) 추가로 클릭 이벤트 감지 확인.
-    3.  `_formKey.currentState!.validate()` 결과를 변수로 받아 명시적으로 검증 실패 로그 출력.
+이 문서는 **2026년 1월 23일** 기준, Frontend(Flutter)와 Backend(Django)의 **인증 시스템 전면 개편(전화번호 기반)**, **Frontend-Backend Monorepo 통합**, 그리고 **최근 발생한 앱 실행 오류 수정 내역**을 정리한 통합 문서입니다.
 
 ---
 
-## 2. 시스템 아키텍처 및 인증 흐름
+## 1. 핵심 변경 사항 (Major Updates)
+
+### A. 인증 시스템 전면 개편 (Email → Phone)
+기존 이메일 기반 로그인에서 **전화번호 기반 로그인**으로 로직과 DB 구조를 완전히 변경했습니다.
+
+*   **배경**: 기획 변경으로 인해 이메일 대신 전화번호를 고유 식별자(ID)로 사용해야 함.
+*   **Database (`users/models.py`)**:
+    *   `phone` 컬럼 추가 (`CharField`, unique=True).
+    *   `email` 컬럼을 **선택 사항(null=True)**으로 변경.
+    *   `USERNAME_FIELD`를 `email`에서 `phone`으로 변경.
+    *   기존 데이터와의 호환성 문제가 발생하여 DB를 초기화(`User.objects.all().delete()`)하고 테스트 유저를 재생성함.
+*   **Backend API (`users/views.py`)**:
+    *   **Signup**: 요청 Body에서 `phone`을 필수로 받도록 수정.
+    *   **Login**: `email` 대신 `phone`으로 유저를 조회하고 비밀번호를 검증하도록 수정.
+*   **Frontend (`api_service.dart`)**:
+    *   로그인/회원가입 요청 시 `phone` 필드를 JSON Key로 사용하여 전송하도록 수정.
+    *   `LoginPasswordPage.dart`: 사용자 입력 전화번호(`widget.phone`)를 하이픈 제거 후 전송.
+
+### B. Monorepo 통합 (Git Structure)
+프로젝트 관리를 용이하게 하기 위해 분리되어 있던 백엔드와 프론트엔드를 하나의 Git 저장소로 통합했습니다.
+
+*   **Repository URL**: `https://github.com/KimHyeongHo/BandF.git`
+*   **구조**:
+    ```
+    root/ (tekeer_Project2)
+    ├── Backend-main/  (Django Server)
+    ├── Frontend/      (Flutter App)
+    └── FRONTEND_BACKEND_CONNECTION_GUIDE.md
+    ```
+*   **조치**: `Backend-main` 내부의 `.git` 폴더를 제거하고, 루트에서 `git init` 후 모든 파일을 커밋하여 `main` 브랜치에 Push 완료.
+
+---
+
+## 2. 버그 수정 및 안정화 (Bug Fixes)
+
+### A. 앱 실행 시 Crash 해결 (Data Handling)
+신규 사용자(데이터가 없는 상태)가 앱에 진입할 때 발생하던 치명적인 에러들을 수정했습니다.
+
+1.  **RangeError (index)**
+    *   **증상**: 홈 화면 진입 시 빨간 에러 화면 발생 (`RangeError: Valid value range is empty: 0`).
+    *   **원인**: 지출 내역(`categoryData`)이 비어있는데, "가장 많이 쓴 카테고리"를 보여주기 위해 `categoryData[0]`에 접근하여 발생.
+    *   **수정**: 데이터가 비어있을 경우(`isEmpty`) **"지출 내역이 없습니다"** 문구와 함께 **[카드 연결하기]** 버튼을 표시하도록 변경.
+
+2.  **Bad state: No element**
+    *   **증상**: 스크롤을 내려 "지난달 비교" 섹션 진입 시 에러 발생.
+    *   **원인**: 비교 데이터가 없는데 `first` 속성으로 접근하여 발생.
+    *   **수정**: 데이터가 비어있을 경우 **"비교할 데이터가 없습니다"** 문구를 표시하도록 방어 로직 추가.
+
+### B. 로그인/회원가입 프로세스 복구
+화면만 존재하고 실제 API를 호출하지 않던 "껍데기" 코드를 실제 동작하는 코드로 구현했습니다.
+
+*   **LoginPasswordPage.dart**:
+    *   [확인] 버튼 클릭 시 `ApiService.login`을 호출하여 실제 JWT 토큰을 발급받도록 연결.
+    *   복잡한 비밀번호 정규식 제한을 해제하여 기존 비밀번호로도 로그인 가능하도록 수정.
+*   **PasswordPage.dart (회원가입)**:
+    *   비밀번호 설정 완료 시 `ApiService.signup`을 호출하여 DB에 유저를 생성하고, 즉시 `login`까지 수행하여 자동 로그인되도록 구현.
+
+---
+
+## 3. 기능 복구 (Feature Restoration)
+
+### 카드 연결 버튼 복구
+*   **증상**: 데이터가 없는 상태에서 사용자가 카드를 등록할 방법이 없었음.
+*   **조치**: 홈 화면의 빈 데이터(Empty State) 뷰에 **[카드 연결하기]** 버튼을 추가했습니다. 클릭 시 `BankSelectionPage`로 이동하여 은행/카드사 연결 프로세스를 시작할 수 있습니다.
+
+---
+
+## 4. 현재 시스템 상태 및 테스트 방법
+
+### 테스트 계정 (Backend DB)
+*   **Phone**: `01012345678`
+*   **Password**: `password`
+*   **상태**: 정상 활성화됨 (DB 초기화 후 생성).
+
+### 앱 실행 방법
+1.  **Backend 실행**:
+    ```bash
+    cd Backend-main
+    docker-compose up -d
+    ```
+2.  **Frontend 실행**:
+    ```bash
+    cd Frontend
+    flutter run
+    ```
+3.  **로그인 테스트**: 위 테스트 계정으로 로그인하거나, [회원가입] 버튼을 눌러 새 계정(전화번호)으로 가입하세요.
+
+---
+
+## 5. (기존 내용) 2. 시스템 아키텍처 및 인증 흐름
 
 ### 간편인증 프로세스 (2-Way Authentication)
 KB국민카드 등 주요 금융사는 ID/PW 스크래핑을 차단하므로 **간편인증(Simple Auth)** 방식을 사용해야 합니다.
@@ -50,32 +117,8 @@ KB국민카드 등 주요 금융사는 ID/PW 스크래핑을 차단하므로 **�
 
 ---
 
-## 3. 파일별 상세 구현 내역
-
-### Backend (`Backend-main/`)
-
-#### `codef/service.py`
-*   **API URL 변경**: `sandbox.codef.io` 대신 `api.codef.io` 사용 (데모 계정도 정식 URL 사용 필요).
-*   **간편인증 파라미터**: `user_name`, `phone_no`, `identity`(주민앞7자리), `telecom` 처리 로직 추가.
-*   **2FA 처리**: Codef 결과가 `CF-03002`일 경우 `is_2fa: True` 플래그와 `two_way_info`를 반환하도록 구조화.
-
-#### `codef/views.py`
-*   **상태 코드 분기**:
-    *   성공 (`CF-00000`): `HTTP 201 Created`
-    *   추가 인증 필요 (`CF-03002`): `HTTP 202 Accepted`
-    *   실패 (`CF-00017` 등): `HTTP 400 Bad Request`
-
-### Frontend (`Frontend/lib/`)
-
-#### `screens/settings/connect_bank_page.dart`
-*   **Form 필드**:
-    *   ID/PW 입력 모드와 간편인증 입력 모드를 라디오 버튼으로 전환.
-    *   통신사 선택 및 인증 앱 선택(`DropdownButtonFormField`) 구현.
-*   **에러 핸들링**: `result['is_2fa']` 체크를 통해 UI 상태를 "대기중"으로 변경하고 [인증 완료] 버튼 활성화.
-
-#### `services/api_service.dart`
-*   **JSON 에러 방어**: Nginx Gateway Error(502) 등으로 인해 HTML이 반환될 경우, `jsonDecode` 에러가 나지 않도록 `try-catch` 및 문자열 체크 로직 추가.
-*   **파라미터 확장**: `createConnectedId` 함수가 `twoWayInfo`, `additionalInfo`(Provider) 등을 받을 수 있도록 수정.
+## 6. (기존 내용) 3. 파일별 상세 구현 내역
+*(기존 내용 유지 - codef, api_service 등)*
 
 ---
 

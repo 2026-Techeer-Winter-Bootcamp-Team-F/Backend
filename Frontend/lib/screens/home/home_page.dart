@@ -1150,9 +1150,11 @@ class _HomePageState extends State<HomePage> {
               onPressed: () {
                 // Navigate to BankSelectionPage or equivalent
                 // We need the user name, but often it's stored or we can pass a default
-                 Navigator.push(
+                Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const BankSelectionPage(name: 'User')),
+                  MaterialPageRoute(
+                    builder: (context) => const BankSelectionPage(name: 'User'),
+                  ),
                 );
               },
               child: const Text('카드 연결하기'),
