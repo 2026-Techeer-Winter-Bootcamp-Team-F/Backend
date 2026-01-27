@@ -19,7 +19,7 @@ services:
   # 2. Django 백엔드 서비스
   backend:
     build:
-      context: . # 현재 디렉토리의 파일을 기반으로 이미지 빌드
+      context: ./Backend # 현재 디렉토리의 파일을 기반으로 이미지 빌드
       dockerfile: Dockerfile
     container_name: backend
     env_file: .env
@@ -31,11 +31,11 @@ services:
       - "8000:8000"
     volumes:
       # 🔥 Hot Reload: 로컬 코드 변경 시 컨테이너에 즉시 반영
-      - ./:/app
+      - ./Backend:/app
       # 캐시 파일은 로컬과 격리 (성능 향상)
       - /app/__pycache__
       - /app/**/__pycache__
-      # 정적 파일 공유
+      # 정적 파일 공유  
       - static_volume:/app/static
     restart: always
     depends_on:
