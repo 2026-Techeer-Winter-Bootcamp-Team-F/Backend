@@ -1,109 +1,116 @@
-# name: Django CI/CD
+name: Django CI/CD
 
-# on:
-#   push:
-#     branches: [ "main", "develop" ]
-#   pull_request:
-#     branches: [ "main", "develop" ]
+on:
+  push:
+    branches: [ "main", "develop" ]
+  pull_request:
+    branches: [ "main", "develop" ]
 
-# jobs:
-#   # 1. 테스트 단계 (CI)
-#   test:
-#     runs-on: ubuntu-latest
-    
-#     # [핵심] 테스트를 위한 '가짜 DB'를 Github 안에 잠깐 띄웁니다.
-#     services:
-#       mysql:
-#         image: mysql:8.0
-#         env:
-#           MYSQL_ROOT_PASSWORD: root
-#           MYSQL_DATABASE: test_db
-#         ports:
-#           - 3306:3306
-#         options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
+jobs:
+  # 1. 테스트 단계 (CI)
+  test:
+    runs-on: ubuntu-latest
 
-#     strategy:
-#       max-parallel: 4
-#       matrix:
-#         python-version: [3.12] # [수정] Django 6.0 호환을 위해 3.12 사용
+    # [핵심] 테스트를 위한 '가짜 DB'를 Github 안에 잠깐 띄웁니다.
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: test_db
+        ports:
+          - 3306:3306
+        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
 
-#     steps:
-#     - uses: actions/checkout@v3
-    
-#     - name: Set up Python ${{ matrix.python-version }}
-#       uses: actions/setup-python@v3
-#       with:
-#         python-version: ${{ matrix.python-version }}
-        
-#     - name: Install Dependencies
-#       run: |
-#         python -m pip install --upgrade pip
-#         pip install -r requirements.txt
-        
-#     - name: Run Tests
-#       # 테스트 실행 시 필요한 환경변수 주입
-#       env:
-#         SECRET_KEY: ${{ secrets.SECRET_KEY }}
-#         DEBUG: 'False'
-#         # 테스트용 DB 정보 (위 services 설정과 맞춰야 함)
-#         DB_NAME: test_db
-#         DB_USER: root
-#         DB_PASSWORD: root
-#         DB_HOST: 127.0.0.1
-#         DB_PORT: 3306
-#         # CodeF 키 (없으면 에러 날 수 있으므로 주입)
-#         ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
-#         CONNECT_ID: ${{ secrets.CONNECT_ID }}
-#       run: |
-#         python manage.py test
+    strategy:
+      max-parallel: 4
+      matrix:
+        python-version: [3.13]
 
-#   # 2. 배포 단계 (CD) - main 브랜치일 때만 실행
-#   deploy:
-#     needs: test # 테스트가 통과해야만 실행됨
-#     if: github.ref == 'refs/heads/main'
-#     runs-on: ubuntu-latest
-    
-#     steps:
-#     - uses: actions/checkout@v3
-    
-#     - name: DockerHub Login
-#       uses: docker/login-action@v2
-#       with:
-#         username: ${{ secrets.DOCKERHUB_USERNAME }}
-#         password: ${{ secrets.DOCKERHUB_TOKEN }}
-        
-#     - name: Build and Push Docker Image
-#       uses: docker/build-push-action@v4
-#       with:
-#         context: .
-#         push: true
-#         tags: ${{ secrets.DOCKERHUB_USERNAME }}/my-backend-repo:latest
-        
-#     - name: Deploy to EC2
-#       uses: appleboy/ssh-action@master
-#       with:
-#         host: ${{ secrets.EC2_HOST }}
-#         username: ${{ secrets.EC2_USER }}
-#         key: ${{ secrets.EC2_KEY }}
-#         script: |
-#           # 최신 이미지 받기
-#           sudo docker pull ${{ secrets.DOCKERHUB_USERNAME }}/my-backend-repo:latest
-          
-#           # 기존 컨테이너 중지 및 삭제
-#           sudo docker stop backend || true
-#           sudo docker rm backend || true
-          
-#           # 새 컨테이너 실행 (Secrets를 환경변수로 주입)
-#           sudo docker run -d --name backend \
-#             -e DB_NAME=${{ secrets.DB_NAME }} \
-#             -e DB_USER=${{ secrets.DB_USER }} \
-#             -e DB_PASSWORD=${{ secrets.DB_PASSWORD }} \
-#             -e DB_HOST=${{ secrets.DB_HOST }} \
-#             -e DB_PORT=3306 \
-#             -e SECRET_KEY=${{ secrets.SECRET_KEY }} \
-#             -e DEBUG=False \
-#             -e ACCESS_TOKEN=${{ secrets.ACCESS_TOKEN }} \
-#             -e CONNECT_ID=${{ secrets.CONNECT_ID }} \
-#             -p 8000:8000 \
-#             --network my-network \
-#             ${{ secrets.DOCKERHUB_USERNAME }}/my-backend-repo:latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v3
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        cd Backend
+        pip install -r requirements.txt
+
+    - name: Run Tests
+      # 테스트 실행 시 필요한 환경변수 주입
+      env:
+        SECRET_KEY: ${{ secrets.SECRET_KEY }}
+        DEBUG: 'False'
+        # 테스트용 DB 정보 (위 services 설정과 맞춰야 함)
+        DB_NAME: test_db
+        DB_USER: root
+        DB_PASSWORD: root
+        DB_HOST: 127.0.0.1
+        DB_PORT: 3306
+        # Codef API 키
+        CODEF_CLIENT_ID: ${{ secrets.CODEF_CLIENT_ID }}
+        CODEF_CLIENT_SECRET: ${{ secrets.CODEF_CLIENT_SECRET }}
+        CODEF_CLIENT_PUBLIC: ${{ secrets.CODEF_CLIENT_PUBLIC }}
+        # Gemini API 키
+        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      run: |
+        cd Backend
+        python manage.py test
+
+  # 2. 배포 단계 (CD) - main 브랜치일 때만 실행
+  deploy:
+    needs: test # 테스트가 통과해야만 실행됨
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: DockerHub Login
+      uses: docker/login-action@v2
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    - name: Build and Push Docker Image
+      uses: docker/build-push-action@v4
+      with:
+        context: ./Backend
+        push: true
+        tags: ${{ secrets.DOCKERHUB_USERNAME }}/backend:latest
+
+    - name: Deploy to EC2
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.EC2_HOST }}
+        username: ${{ secrets.EC2_USER }}
+        key: ${{ secrets.EC2_KEY }}
+        script: |
+          # 최신 이미지 받기
+          sudo docker pull ${{ secrets.DOCKERHUB_USERNAME }}/backend:latest
+
+          # 기존 컨테이너 중지 및 삭제
+          sudo docker stop backend || true
+          sudo docker rm backend || true
+
+          # 새 컨테이너 실행 (Secrets를 환경변수로 주입)
+          sudo docker run -d --name backend \
+            -e DB_NAME=${{ secrets.DB_NAME }} \
+            -e DB_USER=${{ secrets.DB_USER }} \
+            -e DB_PASSWORD=${{ secrets.DB_PASSWORD }} \
+            -e DB_HOST=${{ secrets.DB_HOST }} \
+            -e DB_PORT=3306 \
+            -e SECRET_KEY=${{ secrets.SECRET_KEY }} \
+            -e DEBUG=False \
+            -e CODEF_CLIENT_ID=${{ secrets.CODEF_CLIENT_ID }} \
+            -e CODEF_CLIENT_SECRET=${{ secrets.CODEF_CLIENT_SECRET }} \
+            -e CODEF_CLIENT_PUBLIC=${{ secrets.CODEF_CLIENT_PUBLIC }} \
+            -e GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }} \
+            -p 8000:8000 \
+            --network my-network \
+            ${{ secrets.DOCKERHUB_USERNAME }}/backend:latest
