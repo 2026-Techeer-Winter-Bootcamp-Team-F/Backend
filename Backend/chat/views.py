@@ -129,25 +129,27 @@ class SendMessageView(APIView): # 메시지 전송 및 챗봇 응답 뷰
 class ChatView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
-    """
-    * @method: get - 사용자 채팅 기록 조회
-    * @param : request - HTTP 요청
-    * @create-date: 2026.01.21
-    * @author : GitHub Copilot
-    * @version : 1.0.0
-    """
+    @extend_schema(
+        summary="채팅 기록 조회",
+        description="로그인한 사용자의 AI 채팅 기록을 조회합니다.",
+        tags=["Chat"]
+    )
     def get(self, request):
         messages = ChatMessage.objects.filter(user=request.user).order_by("created_at")
         serializer = ChatMessageSerializer(messages, many=True)
         return Response(serializer.data)
 
-    """
-    * @method: post - 사용자 메시지 전송 및 AI 응답 생성
-    * @param : request - HTTP 요청 (message 포함)
-    * @create-date: 2026.01.21
-    * @author : GitHub Copilot
-    * @version : 1.0.0
-    """
+    @extend_schema(
+        summary="AI 채팅 메시지 전송",
+        description="메시지를 보내면 Gemini AI가 금융 조언을 응답합니다.",
+        request=inline_serializer(
+            name='ChatViewRequest',
+            fields={
+                'message': serializers.CharField(),
+            }
+        ),
+        tags=["Chat"]
+    )
     def post(self, request):
         messageText = request.data.get("message")
         if not messageText:

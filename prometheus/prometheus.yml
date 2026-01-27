@@ -1,18 +1,7 @@
 global:
-  scrape_interval: 15s  # 메트릭을 15초마다 수집
-  evaluation_interval: 15s  # 규칙을 15초마다 평가
+  scrape_interval: 15s
+  evaluation_interval: 15s
 
-# Alertmanager 설정 (선택사항)
-# alerting:
-#   alertmanagers:
-#     - static_configs:
-#         - targets: []
-
-# 규칙 파일 로드 (선택사항)
-# rule_files:
-#   - "alerts.yml"
-
-# 메트릭 수집 대상 설정
 scrape_configs:
   # Prometheus 자체 모니터링
   - job_name: 'prometheus'
@@ -21,7 +10,14 @@ scrape_configs:
 
   # Django 백엔드 애플리케이션
   - job_name: 'django_backend'
-    scrape_interval: 10s  # Django는 10초마다 수집
+    scrape_interval: 10s
     static_configs:
-      - targets: ['backend:8000']  # docker-compose 서비스명:포트
-    metrics_path: '/metrics'  # Django Prometheus 메트릭 경로
+      - targets: ['backend:8000']
+    metrics_path: '/metrics/'
+
+  # cAdvisor - Docker 컨테이너 메트릭
+  - job_name: 'cadvisor'
+    scrape_interval: 10s
+    static_configs:
+      - targets: ['cadvisor:8080']
+    metrics_path: '/metrics'

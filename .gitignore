@@ -602,6 +602,9 @@ dmypy.json
 docker-compose.override.yml
 .dockerignore
 
+# Monitoring data (Grafana, Prometheus)
+grafana/data/
+
 # 로그 파일 (모든 위치)
 **/*.log
 **/logs/

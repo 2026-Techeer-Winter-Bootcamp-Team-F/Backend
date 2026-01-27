@@ -48,7 +48,7 @@ SET @cat_travel    = (SELECT category_id FROM category WHERE category_name = '�
 -- 2. 테스트 사용자
 -- -------------------------------------------------------------
 INSERT INTO users (email, password, name, age_group, gender, created_at, updated_at, is_active, phone, birth_date)
-VALUES ('mockuser@test.com', 'mock1234', '목데이터', '20대', 0, @NOW, @NOW, 1, '01011112222', '19990301');
+VALUES ('mockuser@test.com', 'mock1234*', '목데이터', '20대', 0, @NOW, @NOW, 1, '01011112222', '19990301');
 
 SET @uid = LAST_INSERT_ID();
 

@@ -8,6 +8,7 @@ from django.urls import path, include
 from django.views.generic import RedirectView
 from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
 from .views import health_check, readiness_check, liveness_check
+from django_prometheus.exports import ExportToDjangoView
 
 urlpatterns = [
     #path('admin/', admin.site.urls),
@@ -19,7 +20,7 @@ urlpatterns = [
     path('health/', health_check, name='health-check'),
     path('health/ready/', readiness_check, name='readiness-check'),
     path('health/live/', liveness_check, name='liveness-check'),
-    path('metrics/', include('django_prometheus.urls')),  # Prometheus 메트릭 엔드포인트
+    path('metrics/', ExportToDjangoView, name='prometheus-metrics'),
 
     # [변경] 모든 API 경로에 v1 버전 적용
     path('api/v1/users/', include('users.urls')),      # 예: /api/v1/users/login/
