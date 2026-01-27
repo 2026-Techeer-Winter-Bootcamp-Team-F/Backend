@@ -49,13 +49,13 @@ jobs:
           cd ~/app
 
           # Git 저장소 클론 또는 업데이트
-          if [ -d BandF/.git ]; then
-            cd BandF
+          if [ -d Backend/.git ]; then
+            cd Backend
             git fetch origin
             git reset --hard origin/main
             cd ..
           else
-            rm -rf BandF
+            rm -rf Backend
             git clone https://github.com/2026-Techeer-Winter-Bootcamp-Team-F/Backend.git
           fi
 
@@ -76,10 +76,10 @@ jobs:
             > .env
 
           # 설정 파일 복사
-          cp BandF/docker-compose.yml .
-          cp BandF/docker-compose-monitoring.yml .
-          cp -r BandF/prometheus .
-          cp -r BandF/nginx . 2>/dev/null || true
+          cp Backend/docker-compose.yml .
+          cp Backend/docker-compose-monitoring.yml .
+          cp -r Backend/prometheus .
+          cp -r Backend/nginx . 2>/dev/null || true
 
           # docker-compose.yml 수정: build 대신 DockerHub 이미지 사용
           sed -i '/build:/,/dockerfile:/c\    image: ${{ secrets.DOCKERHUB_USERNAME }}/backend:latest' docker-compose.yml
