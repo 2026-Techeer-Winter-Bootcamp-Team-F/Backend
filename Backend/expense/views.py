@@ -14,7 +14,7 @@ from category.models import Category
 from .serializers import (
     AccumulatedDataSerializer, DailySummarySerializer, TransactionSerializer,
     WeeklyDataSerializer, MonthlyDataSerializer, CategoryDataSerializer,
-    MonthComparisonSerializer, CATEGORY_MAPPING
+    MonthComparisonSerializer, CategoryDetailSerializer, CATEGORY_MAPPING
 )
 
 # 1. 공통 Base 클래스 (인증 및 에러 응답 통일)
@@ -642,6 +642,74 @@ class MonthComparisonView(BaseAuthView):
             }
 
             serializer = MonthComparisonSerializer(result)
+            return Response(serializer.data, status=200)
+
+        except Exception as e:
+            return Response({"message": f"데이터 조회 실패: {str(e)}"}, status=500)
+
+
+# 13. 카테고리별 거래 상세 API
+class CategoryDetailView(BaseAuthView):
+    @extend_schema(
+        summary="카테고리별 거래 상세 내역",
+        description="특정 월의 특정 카테고리에 해당하는 모든 거래 내역을 반환합니다.",
+        parameters=[
+            OpenApiParameter(name='year', description='연도', required=True, type=int),
+            OpenApiParameter(name='month', description='월', required=True, type=int),
+            OpenApiParameter(name='category_name', description='카테고리명 (예: 온라인쇼핑)', required=True, type=str)
+        ],
+        responses={200: CategoryDetailSerializer},
+        tags=['Home']
+    )
+    def get(self, request):
+        try:
+            year = int(request.query_params.get('year'))
+            month = int(request.query_params.get('month'))
+        except (TypeError, ValueError):
+            return Response({"message": "year와 month 파라미터가 필요합니다."}, status=400)
+
+        category_name = request.query_params.get('category_name')
+        if not category_name:
+            return Response({"message": "category_name 파라미터가 필요합니다."}, status=400)
+
+        try:
+            user = request.user
+            expenses = Expense.objects.filter(
+                user=user,
+                spent_at__year=year,
+                spent_at__month=month,
+                category__category_name=category_name,
+                deleted_at__isnull=True
+            ).select_related('category', 'user_card__card').order_by('-spent_at')
+
+            transactions = []
+            total_amount = 0
+            for expense in expenses:
+                total_amount += expense.amount
+                transactions.append({
+                    "expense_id": expense.expense_id,
+                    "merchant_name": expense.merchant_name,
+                    "amount": expense.amount,
+                    "spent_at": expense.spent_at,
+                    "card_name": expense.user_card.card.card_name if expense.user_card and expense.user_card.card else "기타"
+                })
+
+            category_info = CATEGORY_MAPPING.get(category_name, {
+                'emoji': '🏷️',
+                'color': '#757575',
+                'en_name': 'other'
+            })
+
+            result = {
+                "category_name": category_name,
+                "emoji": category_info['emoji'],
+                "color": category_info['color'],
+                "total_amount": total_amount,
+                "transaction_count": len(transactions),
+                "transactions": transactions
+            }
+
+            serializer = CategoryDetailSerializer(result)
             return Response(serializer.data, status=200)
 
         except Exception as e:

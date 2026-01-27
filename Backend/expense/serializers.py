@@ -71,3 +71,22 @@ class MonthComparisonSerializer(serializers.Serializer):
     lastMonthSameDay = serializers.IntegerField()
     thisMonthData = DailyAccumulatedSerializer(many=True)
     lastMonthData = DailyAccumulatedSerializer(many=True)
+
+
+class CategoryDetailTransactionSerializer(serializers.Serializer):
+    """카테고리별 개별 거래 내역"""
+    expense_id = serializers.IntegerField()
+    merchant_name = serializers.CharField()
+    amount = serializers.IntegerField()
+    spent_at = serializers.DateTimeField()
+    card_name = serializers.CharField()
+
+
+class CategoryDetailSerializer(serializers.Serializer):
+    """카테고리별 거래 상세 조회"""
+    category_name = serializers.CharField()
+    emoji = serializers.CharField()
+    color = serializers.CharField()
+    total_amount = serializers.IntegerField()
+    transaction_count = serializers.IntegerField()
+    transactions = CategoryDetailTransactionSerializer(many=True)

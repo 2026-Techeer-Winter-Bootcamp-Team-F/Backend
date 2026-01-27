@@ -12,6 +12,7 @@ from .views import (
     MonthlyAverageView,
     CategorySummaryView,
     MonthComparisonView,
+    CategoryDetailView,
 )
 
 urlpatterns = [
@@ -47,4 +48,7 @@ urlpatterns = [
     
     # 7. 월간 비교
     path('transactions/month-comparison', MonthComparisonView.as_view(), name='month-comparison'),
+
+    # 8. 카테고리별 거래 상세
+    path('transactions/category-detail', CategoryDetailView.as_view(), name='category-detail'),
 ]
