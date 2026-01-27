@@ -22,6 +22,7 @@ class User(AbstractBaseUser):
     age_group = models.CharField(max_length=10, null=True, blank=True)
     # False는 0(남성), True는 1(여성)로 매핑됩니다.
     gender = models.BooleanField(null=True, blank=True, help_text="0: 남성(False), 1: 여성(True)")
+    birth_date = models.CharField(max_length=8, null=True, blank=True, help_text="생년월일 (YYYYMMDD)")
     password_reset_token = models.CharField(max_length=255, null=True, blank=True)
     password_reset_expires = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)

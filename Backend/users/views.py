@@ -1,6 +1,7 @@
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.views import APIView
+from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 from drf_spectacular.utils import extend_schema, OpenApiExample
 from .models import User, UserCard
@@ -18,8 +19,9 @@ class SignUpView(APIView): # 회원가입 뷰
                     "password": {"type": "string", "example": "password123"},
                     "name": {"type": "string", "example": "테스터"},
                     "email": {"type": "string", "example": "test@example.com"},
+                    "birth_date": {"type": "string", "example": "19900101", "description": "생년월일 (YYYYMMDD)"},
                 },
-                "required": ["phone", "password", "name"],
+                "required": ["phone", "password", "name", "birth_date"],
             }
         },
         responses={201: OpenApiExample('회원가입 성공', value={"message": "회원가입 성공", "user_id": 1})},
@@ -30,9 +32,13 @@ class SignUpView(APIView): # 회원가입 뷰
         password = request.data.get('password')
         name = request.data.get('name')
         email = request.data.get('email')
+        birth_date = request.data.get('birth_date', '').strip()
 
-        if not phone or not password or not name:
-            return Response({'error': '모든 정보를 채워주세요.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not phone or not password or not name or not birth_date:
+            return Response({'error': '모든 정보를 채워주세요. (phone, password, name, birth_date 필수)'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if len(birth_date) != 8 or not birth_date.isdigit():
+            return Response({'error': '생년월일은 YYYYMMDD 형식이어야 합니다. (예: 19900101)'}, status=status.HTTP_400_BAD_REQUEST)
         
         if User.objects.filter(phone=phone).exists():
             return Response({'error': '이미 존재하는 전화번호입니다.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -42,7 +48,8 @@ class SignUpView(APIView): # 회원가입 뷰
             phone=phone,
             password=password, # 암호화 없이 그대로 저장
             name=name,
-            email=email
+            email=email,
+            birth_date=birth_date
         )
 
         """
@@ -67,7 +74,19 @@ class SignUpView(APIView): # 회원가입 뷰
         except Exception as e:
             pass  # 카드 등록 실패해도 회원가입은 진행
 
-        return Response({"message": "회원가입 성공", "result": {"user_id": user.user_id}}, status=status.HTTP_201_CREATED)
+        # 회원가입 후 자동 로그인 (JWT 토큰 발급)
+        refresh = RefreshToken.for_user(user)
+        return Response({
+            "message": "회원가입 성공",
+            "result": {
+                "user_id": user.user_id,
+                "name": user.name,
+                "token": {
+                    "access": str(refresh.access_token),
+                    "refresh": str(refresh)
+                }
+            }
+        }, status=status.HTTP_201_CREATED)
 
 class LoginView(APIView): # 로그인 뷰
     @extend_schema(
@@ -116,4 +135,61 @@ class LoginView(APIView): # 로그인 뷰
                 'access': str(refresh.access_token),
                 'refresh': str(refresh)
             }
+        }, status=status.HTTP_200_OK)
+
+
+class UserProfileView(APIView):
+    """유저 정보 조회 (토큰 기반)"""
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="유저 정보 조회",
+        description="JWT 토큰 기반으로 로그인한 유저의 모든 정보를 반환합니다.",
+        responses={
+            200: OpenApiExample(
+                '조회 성공',
+                value={
+                    "user_id": 1,
+                    "phone": "01012345678",
+                    "name": "테스터",
+                    "email": "test@example.com",
+                    "birth_date": "19900101",
+                    "age_group": "30대",
+                    "gender": False,
+                    "created_at": "2026-01-27T12:00:00Z",
+                    "cards": []
+                }
+            )
+        },
+        tags=['User']
+    )
+    def get(self, request):
+        user = request.user
+
+        # 유저 보유 카드 목록
+        user_cards = UserCard.objects.filter(user=user).select_related('card')
+        cards_data = [
+            {
+                "user_card_id": uc.user_card_id,
+                "card_id": uc.card.card_id,
+                "card_name": uc.card.card_name,
+                "company": uc.card.company,
+                "card_image_url": uc.card.card_image_url,
+                "card_number": uc.card_number,
+                "registered_at": uc.registered_at,
+            }
+            for uc in user_cards
+        ]
+
+        return Response({
+            "user_id": user.user_id,
+            "phone": user.phone,
+            "name": user.name,
+            "email": user.email,
+            "birth_date": user.birth_date,
+            "age_group": user.age_group,
+            "gender": user.gender,
+            "created_at": user.created_at,
+            "cards": cards_data,
         }, status=status.HTTP_200_OK)

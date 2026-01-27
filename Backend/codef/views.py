@@ -15,6 +15,15 @@ import datetime
 
 logger = logging.getLogger(__name__)
 
+# CODEF 카드사 코드 → 카드사명 매핑
+ORG_MAP = {
+    '0301': '국민카드', '0302': '현대카드', '0303': '삼성카드',
+    '0304': 'NH카드', '0305': 'BC카드', '0306': '신한카드',
+    '0307': '씨티카드', '0309': '우리카드', '0311': '롯데카드',
+    '0313': '하나카드', '0315': '전북카드', '0316': '광주카드',
+    '0320': '수협카드', '0321': '제주카드'
+}
+
 
 def extract_bearer_token(request):
     """
@@ -111,8 +120,7 @@ class GetCodefTokenView(APIView):
 class CreateConnectedIdView(APIView):
     """Connected ID 발급 뷰 (간편인증 지원)"""
 
-    authentication_classes = []
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     @extend_schema(
         operation_id="create_connected_id",
@@ -149,29 +157,50 @@ class CreateConnectedIdView(APIView):
     )
     def post(self, request):
         try:
-            # 1. Authorization 헤더에서 토큰 추출
+            # 1. CODEF 토큰 추출 (없으면 자동 발급)
             access_token = extract_bearer_token(request)
-            
+
             if not access_token:
-                logger.warning("Missing Authorization header in create_connected_id request")
-                return Response(
-                    {"success": False, "error_message": "Authorization 헤더에 Bearer 토큰이 필요합니다."},
-                    status=status.HTTP_401_UNAUTHORIZED
-                )
-            
+                logger.info("No Authorization header provided, auto-fetching Codef token")
+                codef_service = CodefAPIService()
+                access_token = codef_service.get_access_token()
+                if not access_token:
+                    return Response(
+                        {"success": False, "error_message": "Codef API 토큰 자동 발급에 실패했습니다."},
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                    )
+
             # 2. 요청 데이터 수신
             organization = request.data.get('organization', '').strip()
             login_type = request.data.get('login_type', '1')
-            
+
             # ID/PW용
             card_id = request.data.get('card_id', '').strip()
             password = request.data.get('password', '').strip()
-            
-            # 간편인증용
+
+            # 간편인증용 (프론트에서 안 보내면 유저 모델에서 자동으로 채움)
             user_name = request.data.get('user_name', '').strip()
             phone_no = request.data.get('phone_no', '').strip()
             identity = request.data.get('identity', '').strip()
             telecom = request.data.get('telecom', '').strip()
+
+            # 간편인증 시 유저 모델에서 자동 채우기
+            if login_type == '5' and request.user and request.user.is_authenticated:
+                user = request.user
+                if not user_name and user.name:
+                    user_name = user.name
+                if not phone_no and user.phone:
+                    phone_no = user.phone
+                if not identity and user.birth_date:
+                    # identity = YYMMDD + 성별코드 (1:2000년 이전 남, 2:여, 3:2000년 이후 남, 4:여)
+                    bd = user.birth_date  # YYYYMMDD
+                    yymmdd = bd[2:8]
+                    if user.gender is not None:
+                        if int(bd[:4]) < 2000:
+                            gender_code = '2' if user.gender else '1'
+                        else:
+                            gender_code = '4' if user.gender else '3'
+                        identity = yymmdd + gender_code
             
             # 2차 인증 데이터
             two_way_info = request.data.get('two_way_info')
@@ -330,27 +359,29 @@ class GetCardListView(APIView):
     )
     def post(self, request):
         try:
-             # 1. 헤더에서 Codef 토큰 추출 (X-Codef-Token)
+             # 1. CODEF 토큰 추출 (없으면 자동 발급)
             access_token = request.headers.get('X-Codef-Token')
-            
+
             if not access_token:
-                logger.warning("Missing X-Codef-Token header in get_card_list request")
-                return Response(
-                    {
-                        "success": False,
-                        "error_message": "X-Codef-Token 헤더에 Codef API 토큰이 필요합니다."
-                    },
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+                logger.info("No X-Codef-Token header provided, auto-fetching Codef token")
+                codef_service_token = CodefAPIService()
+                access_token = codef_service_token.get_access_token()
+                if not access_token:
+                    return Response(
+                        {"success": False, "error_message": "Codef API 토큰 자동 발급에 실패했습니다."},
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                    )
 
             # 2. 요청 데이터 검증
             organization = request.data.get('organization', '').strip()
             connected_id = request.data.get('connected_id', '').strip()
             birth_date = request.data.get('birth_date', '').strip()
+            if not birth_date and request.user.is_authenticated and request.user.birth_date:
+                birth_date = request.user.birth_date
             card_no = request.data.get('card_no', '').strip()
             card_password = request.data.get('card_password', '').strip()
             inquiry_type = request.data.get('inquiry_type', '0').strip()
-            
+
             # 필수값 검증
             if not organization or not connected_id:
                 return Response(
@@ -364,7 +395,7 @@ class GetCardListView(APIView):
             # 3. Codef API 호출
             codef_service = CodefAPIService()
             codef_service.access_token = access_token
-            
+
             result = codef_service.get_card_list(
                 organization=organization,
                 connected_id=connected_id,
@@ -384,13 +415,7 @@ class GetCardListView(APIView):
                     elif not isinstance(card_data, list):
                         card_data = []
 
-                    # 기관 코드 매핑
-                    org_map = {
-                        '0301': '삼성카드', '0302': '신한카드', '0303': '현대카드', '0304': 'KB국민카드',
-                        '0305': '롯데카드', '0306': '신한카드', '0311': 'NH농협카드', '0313': '하나카드',
-                        '0317': '우리카드', '0320': 'BC카드'
-                    }
-                    company_name = org_map.get(organization, organization)
+                    company_name = ORG_MAP.get(organization, organization)
 
                     for item in card_data:
                         res_card_name = item.get('resCardName')
@@ -408,12 +433,14 @@ class GetCardListView(APIView):
                             )
 
                             # 2. UserCard 모델 (사용자 소유 카드) 업데이트/생성
+                            # 프론트에서 card_no를 보냈으면 전체 번호 저장, 아니면 마스킹된 번호 저장
+                            card_number_to_save = card_no if card_no else res_card_no
                             if request.user.is_authenticated:
                                 UserCard.objects.update_or_create(
                                     user=request.user,
                                     card=card,
                                     defaults={
-                                        'card_number': res_card_no
+                                        'card_number': card_number_to_save
                                     }
                                 )
                 except Exception as db_e:
@@ -483,23 +510,33 @@ class GetBillingListView(APIView):
     )
     def post(self, request):
         try:
-            # 1. 헤더에서 Codef 토큰 추출
+            # 1. CODEF 토큰 추출 (없으면 자동 발급)
             access_token = request.headers.get('X-Codef-Token')
             if not access_token:
-                logger.warning("Missing X-Codef-Token header in get_billing_list request")
-                return Response(
-                    {
-                        "success": False,
-                        "error_message": "X-Codef-Token 헤더에 Codef API 토큰이 필요합니다."
-                    },
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+                logger.info("No X-Codef-Token header provided, auto-fetching Codef token")
+                codef_service_token = CodefAPIService()
+                access_token = codef_service_token.get_access_token()
+                if not access_token:
+                    return Response(
+                        {"success": False, "error_message": "Codef API 토큰 자동 발급에 실패했습니다."},
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                    )
 
             # 2. 요청 데이터 검증
             organization = request.data.get('organization', '').strip()
             connected_id = request.data.get('connected_id', '').strip()
             birth_date = request.data.get('birth_date', '').strip()
+            if not birth_date and request.user.is_authenticated and request.user.birth_date:
+                birth_date = request.user.birth_date
             card_no = request.data.get('card_no', '').strip()
+            # card_no 없으면 UserCard에서 자동 조회
+            if not card_no and request.user.is_authenticated:
+                company_name = ORG_MAP.get(organization, organization)
+                user_card = UserCard.objects.filter(
+                    user=request.user, card__company=company_name
+                ).exclude(card_number='').exclude(card_number__contains='*').first()
+                if user_card and user_card.card_number:
+                    card_no = user_card.card_number
             card_password = request.data.get('card_password', '').strip()
             inquiry_type = request.data.get('inquiry_type', '0').strip()
 
@@ -515,7 +552,7 @@ class GetBillingListView(APIView):
             # 3. Codef API 호출
             codef_service = CodefAPIService()
             codef_service.access_token = access_token
-            
+
             result = codef_service.get_billing_list(
                 organization=organization,
                 connected_id=connected_id,
@@ -696,10 +733,14 @@ class GetApprovalListView(APIView):
         try:
             access_token = request.headers.get('X-Codef-Token')
             if not access_token:
-                return Response(
-                     {"success": False, "error_message": "X-Codef-Token required"},
-                     status=status.HTTP_400_BAD_REQUEST
-                )
+                logger.info("No X-Codef-Token header provided, auto-fetching Codef token")
+                codef_service_token = CodefAPIService()
+                access_token = codef_service_token.get_access_token()
+                if not access_token:
+                    return Response(
+                        {"success": False, "error_message": "Codef API 토큰 자동 발급에 실패했습니다."},
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                    )
 
             data = request.data
             organization = data.get('organization')
@@ -707,6 +748,19 @@ class GetApprovalListView(APIView):
             start_date = data.get('start_date') # 필수 YYYYMMDD
             end_date = data.get('end_date') # 필수 YYYYMMDD
             inquiry_type = data.get('inquiry_type', '0')
+            birth_date = data.get('birth_date', '').strip() if data.get('birth_date') else ''
+            if not birth_date and request.user.is_authenticated and request.user.birth_date:
+                birth_date = request.user.birth_date
+            card_no = data.get('card_no', '').strip() if data.get('card_no') else ''
+            # card_no 없으면 UserCard에서 자동 조회
+            if not card_no and request.user.is_authenticated:
+                company_name = ORG_MAP.get(organization, organization)
+                user_card = UserCard.objects.filter(
+                    user=request.user, card__company=company_name
+                ).exclude(card_number='').exclude(card_number__contains='*').first()
+                if user_card and user_card.card_number:
+                    card_no = user_card.card_number
+            card_password = data.get('card_password', '').strip() if data.get('card_password') else ''
 
             if not all([organization, connected_id, start_date, end_date]):
                 return Response(
@@ -719,9 +773,9 @@ class GetApprovalListView(APIView):
             codef_service.access_token = access_token
             result = codef_service.get_approval_list(
                 organization, connected_id, start_date, end_date,
-                card_no=data.get('card_no', ''),
-                card_password=data.get('card_password', ''),
-                birth_date=data.get('birth_date', ''),
+                card_no=card_no,
+                card_password=card_password,
+                birth_date=birth_date,
                 inquiry_type=inquiry_type
             )
 
@@ -739,91 +793,86 @@ class GetApprovalListView(APIView):
             default_category, _ = Category.objects.get_or_create(category_name="기타")
             saved_count = 0
 
+            # CODEF 응답 구조 처리:
+            # 1) 중첩 구조: data = [{"resApprovalList": [...]}]
+            # 2) 플랫 구조: data = [{"resUsedDate": ..., "resApprovalNo": ...}, ...]
+            flat_approvals = []
             for item in approval_list:
-                # Codef structure: list of accounts, each has 'resApprovalList'
-                res_approval_list = item.get('resApprovalList', [])
-                if not isinstance(res_approval_list, list): continue
-                
-                for approval in res_approval_list:
-                    # Parse fields
-                    res_used_date = approval.get('resUsedDate')
-                    res_used_time = approval.get('resUsedTime', '000000')
-                    res_approval_no = approval.get('resApprovalNo') # Unique key
-                    
-                    if not res_used_date: continue
-                    
-                    # Store Name handling
-                    merchant_name = approval.get('resMemberStoreName', 'Unknown')
-                    
-                    try:
-                        dt_str = res_used_date + res_used_time
-                        spent_at = datetime.datetime.strptime(dt_str, "%Y%m%d%H%M%S")
-                        spent_at = spent_at.replace(tzinfo=datetime.timezone.utc)
-                    except:
+                if 'resApprovalList' in item:
+                    flat_approvals.extend(item['resApprovalList'])
+                elif 'resUsedDate' in item:
+                    flat_approvals.append(item)
+
+            for approval in flat_approvals:
+                # Parse fields
+                res_used_date = approval.get('resUsedDate')
+                res_used_time = approval.get('resUsedTime', '000000')
+                res_approval_no = approval.get('resApprovalNo')
+
+                if not res_used_date: continue
+
+                merchant_name = approval.get('resMemberStoreName', 'Unknown')
+
+                try:
+                    dt_str = res_used_date + res_used_time
+                    spent_at = datetime.datetime.strptime(dt_str, "%Y%m%d%H%M%S")
+                    spent_at = spent_at.replace(tzinfo=datetime.timezone.utc)
+                except:
+                    continue
+
+                def parse_amount(val):
+                    if isinstance(val, int): return val
+                    if isinstance(val, float): return int(val)
+                    if isinstance(val, str):
+                        val = val.replace(',', '').strip()
+                        return int(float(val)) if val else 0
+                    return 0
+
+                amount = parse_amount(approval.get('resUsedAmount'))
+
+                # UserCard 찾기
+                res_card_name = approval.get('resCardName', '')
+                user_card = None
+
+                if res_card_name:
+                    user_card = UserCard.objects.filter(
+                        user=request.user,
+                        card__card_name__icontains=res_card_name
+                    ).first()
+
+                if not user_card:
+                    user_cards = UserCard.objects.filter(user=request.user)
+                    if user_cards.count() == 1:
+                        user_card = user_cards.first()
+                    else:
+                        logger.warning(f"Skipping transaction {res_approval_no}: No matching card for '{res_card_name}'")
                         continue
 
-                    # 금액 파싱 (콤마 제거)
-                    def parse_amount(val):
-                        if isinstance(val, int): return val
-                        if isinstance(val, str):
-                            val = val.replace(',', '').strip()
-                            return int(val) if val else 0
-                        return 0
+                expense_defaults = {
+                    'category': default_category,
+                    'user_card': user_card,
+                    'status': 'PAID',
+                    'spent_at': spent_at,
+                    'amount': amount,
+                    'merchant_name': merchant_name,
+                    'approval_number': res_approval_no
+                }
 
-                    amount = parse_amount(approval.get('resUsedAmount'))
-                    
-                    # UserCard 찾기 Logic
-                    res_card_name = approval.get('resCardName', '') 
-                    user_card = None
+                if res_approval_no:
+                    obj, created = Expense.objects.update_or_create(
+                        user=request.user,
+                        approval_number=res_approval_no,
+                        defaults=expense_defaults
+                    )
+                else:
+                    obj, created = Expense.objects.get_or_create(
+                        user=request.user,
+                        spent_at=spent_at,
+                        amount=amount,
+                        merchant_name=merchant_name,
+                        defaults=expense_defaults
+                    )
 
-                    if res_card_name:
-                         user_card = UserCard.objects.filter(
-                            user=request.user, 
-                            card__card_name__icontains=res_card_name
-                        ).first()
-                    
-                    # 카드 매칭 실패 시 로직 개선
-                    if not user_card:
-                         # 1. 유저 보유 카드가 단 1개라면 그 카드로 가정
-                         user_cards = UserCard.objects.filter(user=request.user)
-                         if user_cards.count() == 1:
-                             user_card = user_cards.first()
-                         else:
-                             # 2. 여러 개인데 매칭 안되면 스킵 (안전 제일)
-                             # 로깅만 남김
-                             logger.warning(f"Skipping transaction {res_approval_no}: No matching card for '{res_card_name}'")
-                             continue 
-
-                    # Save Expense
-                    # 승인번호(unique)를 기준으로 update_or_create 수행
-                    
-                    expense_defaults = {
-                        'category': default_category,
-                        'user_card': user_card,
-                        'status': 'PAID',
-                        'spent_at': spent_at,
-                        'amount': amount,
-                        'merchant_name': merchant_name,
-                        'approval_number': res_approval_no
-                    }
-                    
-                    if res_approval_no:
-                        # 승인번호가 있으면 확실하게 중복 제거 가능
-                        obj, created = Expense.objects.update_or_create(
-                            user=request.user,
-                            approval_number=res_approval_no,
-                            defaults=expense_defaults
-                        )
-                    else:
-                        # 승인번호가 없으면(드문 경우), 기존 방식(날짜+금액+가맹점)으로 중복 체크
-                        obj, created = Expense.objects.get_or_create(
-                            user=request.user,
-                            spent_at=spent_at,
-                            amount=amount,
-                            merchant_name=merchant_name,
-                            defaults=expense_defaults
-                        )
-                    
                     if created:
                         saved_count += 1
 
