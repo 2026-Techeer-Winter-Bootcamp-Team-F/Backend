@@ -56,6 +56,28 @@ jobs:
         cd Backend
         python manage.py test
 
+    - name: Test Health Check Endpoint
+      env:
+        SECRET_KEY: ${{ secrets.SECRET_KEY }}
+        DEBUG: 'True'
+        DB_NAME: test_db
+        DB_USER: root
+        DB_PASSWORD: root
+        DB_HOST: 127.0.0.1
+        DB_PORT: 3306
+        CODEF_CLIENT_ID: ${{ secrets.CODEF_CLIENT_ID }}
+        CODEF_CLIENT_SECRET: ${{ secrets.CODEF_CLIENT_SECRET }}
+        CODEF_CLIENT_PUBLIC: ${{ secrets.CODEF_CLIENT_PUBLIC }}
+        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      run: |
+        cd Backend
+        python manage.py migrate
+        python manage.py runserver 0.0.0.0:8000 &
+        sleep 5
+        curl -f http://localhost:8000/health/ || exit 1
+        curl -f http://localhost:8000/health/ready/ || exit 1
+        curl -f http://localhost:8000/health/live/ || exit 1
+
   docker-build:
     runs-on: ubuntu-latest
 

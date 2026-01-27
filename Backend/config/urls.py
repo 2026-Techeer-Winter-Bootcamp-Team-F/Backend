@@ -7,13 +7,20 @@ The `urlpatterns` list routes URLs to views. For more information please see:
 from django.urls import path, include
 from django.views.generic import RedirectView
 from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
+from .views import health_check, readiness_check, liveness_check
 
 urlpatterns = [
     #path('admin/', admin.site.urls),
 
     # [추가] 루트 접속 시 Swagger 문서로 리다이렉트
     path('', RedirectView.as_view(url='/api/v1/docs/', permanent=False)),
-    
+
+    # 헬스체크 및 모니터링 엔드포인트
+    path('health/', health_check, name='health-check'),
+    path('health/ready/', readiness_check, name='readiness-check'),
+    path('health/live/', liveness_check, name='liveness-check'),
+    path('metrics/', include('django_prometheus.urls')),  # Prometheus 메트릭 엔드포인트
+
     # [변경] 모든 API 경로에 v1 버전 적용
     path('api/v1/users/', include('users.urls')),      # 예: /api/v1/users/login/
     path('api/v1/expense/', include('expense.urls')),  # 예: /api/v1/expense/analysis/

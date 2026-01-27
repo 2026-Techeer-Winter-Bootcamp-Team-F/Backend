@@ -43,6 +43,7 @@ ALLOWED_HOSTS = ['*']  # [설명] 배포 시에는 도메인/IP를 여기에 추
 
 INSTALLED_APPS = [
     #'django.contrib.admin',
+    'django_prometheus',   # [설명] Prometheus 모니터링 (최상단에 위치)
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
@@ -59,6 +60,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'django_prometheus.middleware.PrometheusBeforeMiddleware',  # [설명] Prometheus 메트릭 수집 시작 (최상단)
     'corsheaders.middleware.CorsMiddleware',  # [설명] CORS 미들웨어 (최상단에 위치 권장)
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -67,6 +69,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     #'django.contrib.messages.middleware.MessageMiddleware', 어드민과 연동됨
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'django_prometheus.middleware.PrometheusAfterMiddleware',   # [설명] Prometheus 메트릭 수집 완료 (최하단)
 ]
 
 ROOT_URLCONF = 'config.urls'  # [설명] 최상위 URL 설정 모듈
@@ -101,7 +104,7 @@ WSGI_APPLICATION = 'config.wsgi.application'  # [설명] WSGI 진입점
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.mysql',  # [설명] MySQL 사용
+        'ENGINE': 'django_prometheus.db.backends.mysql',  # [설명] Prometheus 메트릭 수집이 가능한 MySQL 백엔드
         'NAME': os.getenv('DB_NAME'),
         'USER': os.getenv('DB_USER'),
         'PASSWORD': os.getenv('DB_PASSWORD'),  # [설명] 실제 비밀번호 대신 환경 변수 사용

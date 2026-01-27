@@ -61,7 +61,43 @@ services:
     depends_on:
       - backend
 
+  # 4. Prometheus 메트릭 수집 및 저장
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    restart: always
+    ports:
+      - "9090:9090"  # Prometheus UI 접속 포트
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml  # Prometheus 설정 파일
+      - prometheus_data:/prometheus  # 메트릭 데이터 저장용 볼륨
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    depends_on:
+      - backend
+
+  # 5. Grafana 메트릭 시각화 대시보드
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: always
+    ports:
+      - "3000:3000"  # Grafana UI 접속 포트
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin  # 기본 관리자 계정
+      - GF_SECURITY_ADMIN_PASSWORD=admin  # 기본 관리자 비밀번호 (운영 환경에서는 반드시 변경)
+      - GF_USERS_ALLOW_SIGN_UP=false  # 회원가입 비활성화
+    volumes:
+      - grafana_data:/var/lib/grafana  # Grafana 데이터 저장용 볼륨
+    depends_on:
+      - prometheus
+
 # 공용 볼륨 정의
 volumes:
   db_data:       # MySQL 데이터 저장용
   static_volume: # Django와 Nginx 사이의 정적 파일 공유용
+  prometheus_data: # Prometheus 메트릭 데이터 저장용
+  grafana_data:    # Grafana 설정 및 대시보드 저장용
