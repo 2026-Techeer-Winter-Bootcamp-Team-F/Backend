@@ -72,6 +72,11 @@ jobs:
           cp -r Backend/prometheus .
           cp -r Backend/nginx . 2>/dev/null || true
 
+          # docker-compose.yml 수정: build 대신 DockerHub 이미지 사용
+          sed -i '/build:/,/dockerfile:/c\    image: ${{ secrets.DOCKERHUB_USERNAME }}/backend:latest' docker-compose.yml
+          # Backend 볼륨 마운트 제거 (EC2에서는 불필요)
+          sed -i '/- \.\/Backend:\/app/d' docker-compose.yml
+
           # 기존 단일 컨테이너 중지 (docker-compose 방식으로 전환)
           sudo docker stop backend nginx prometheus grafana mysqldb 2>/dev/null || true
           sudo docker rm backend nginx prometheus grafana mysqldb 2>/dev/null || true
@@ -85,7 +90,7 @@ jobs:
 
           # 서비스 시작 대기
           echo "Waiting for services to start..."
-          sleep 15
+          sleep 20
 
     - name: Health Check
       uses: appleboy/ssh-action@master
