@@ -29,66 +29,71 @@ jobs:
 
     - name: Deploy to EC2
       uses: appleboy/ssh-action@master
+      env:
+        DB_NAME: ${{ secrets.DB_NAME }}
+        DB_USER: ${{ secrets.DB_USER }}
+        DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+        DB_ROOT_PASSWORD: ${{ secrets.DB_ROOT_PASSWORD }}
+        SECRET_KEY: ${{ secrets.SECRET_KEY }}
+        CODEF_CLIENT_ID: ${{ secrets.CODEF_CLIENT_ID }}
+        CODEF_CLIENT_SECRET: ${{ secrets.CODEF_CLIENT_SECRET }}
+        CODEF_CLIENT_PUBLIC: ${{ secrets.CODEF_CLIENT_PUBLIC }}
+        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       with:
         host: ${{ secrets.EC2_HOST }}
         username: ${{ secrets.EC2_USER }}
         key: ${{ secrets.EC2_KEY }}
+        envs: DB_NAME,DB_USER,DB_PASSWORD,DB_ROOT_PASSWORD,SECRET_KEY,CODEF_CLIENT_ID,CODEF_CLIENT_SECRET,CODEF_CLIENT_PUBLIC,GEMINI_API_KEY
         script: |
-          # 작업 디렉토리 생성 및 이동
           mkdir -p ~/app
           cd ~/app
 
           # Git 저장소 클론 또는 업데이트
-          if [ -d Backend/.git ]; then
-            cd Backend
+          if [ -d BandF/.git ]; then
+            cd BandF
             git fetch origin
             git reset --hard origin/main
             cd ..
           else
-            rm -rf Backend
+            rm -rf BandF
             git clone https://github.com/2026-Techeer-Winter-Bootcamp-Team-F/Backend.git
           fi
 
-          # 환경 변수 파일이 없으면 생성
-          if [ ! -f .env ]; then
-            cat > .env << EOF
-          DB_NAME=${{ secrets.DB_NAME }}
-          DB_USER=${{ secrets.DB_USER }}
-          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-          DB_ROOT_PASSWORD=${{ secrets.DB_ROOT_PASSWORD }}
-          DB_HOST=mysqldb
-          DB_PORT=3306
-          SECRET_KEY=${{ secrets.SECRET_KEY }}
-          DEBUG=False
-          CODEF_CLIENT_ID=${{ secrets.CODEF_CLIENT_ID }}
-          CODEF_CLIENT_SECRET=${{ secrets.CODEF_CLIENT_SECRET }}
-          CODEF_CLIENT_PUBLIC=${{ secrets.CODEF_CLIENT_PUBLIC }}
-          GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
-          EOF
-          fi
+          # 환경 변수 파일 생성 (매 배포마다 갱신)
+          printf '%s\n' \
+            "DB_NAME=${DB_NAME}" \
+            "DB_USER=${DB_USER}" \
+            "DB_PASSWORD=${DB_PASSWORD}" \
+            "DB_ROOT_PASSWORD=${DB_ROOT_PASSWORD}" \
+            "DB_HOST=mysqldb" \
+            "DB_PORT=3306" \
+            "SECRET_KEY=${SECRET_KEY}" \
+            "DEBUG=False" \
+            "CODEF_CLIENT_ID=${CODEF_CLIENT_ID}" \
+            "CODEF_CLIENT_SECRET=${CODEF_CLIENT_SECRET}" \
+            "CODEF_CLIENT_PUBLIC=${CODEF_CLIENT_PUBLIC}" \
+            "GEMINI_API_KEY=${GEMINI_API_KEY}" \
+            > .env
 
-          # docker-compose.yml 및 설정 파일 복사
-          cp Backend/docker-compose.yml .
-          cp -r Backend/prometheus .
-          cp -r Backend/nginx . 2>/dev/null || true
+          # 설정 파일 복사
+          cp BandF/docker-compose.yml .
+          cp BandF/docker-compose-monitoring.yml .
+          cp -r BandF/prometheus .
+          cp -r BandF/nginx . 2>/dev/null || true
 
           # docker-compose.yml 수정: build 대신 DockerHub 이미지 사용
           sed -i '/build:/,/dockerfile:/c\    image: ${{ secrets.DOCKERHUB_USERNAME }}/backend:latest' docker-compose.yml
-          # Backend 볼륨 마운트 제거 (EC2에서는 불필요)
           sed -i '/- \.\/Backend:\/app/d' docker-compose.yml
-
-          # 기존 단일 컨테이너 중지 (docker-compose 방식으로 전환)
-          sudo docker stop backend nginx prometheus grafana mysqldb 2>/dev/null || true
-          sudo docker rm backend nginx prometheus grafana mysqldb 2>/dev/null || true
 
           # Docker 이미지 업데이트
           sudo docker pull ${{ secrets.DOCKERHUB_USERNAME }}/backend:latest
 
-          # docker-compose로 모든 서비스 시작
-          sudo docker-compose down
-          sudo docker-compose up -d
+          # 서비스 재시작
+          sudo docker compose down 2>/dev/null || true
+          sudo docker compose -f docker-compose-monitoring.yml down 2>/dev/null || true
+          sudo docker compose up -d
+          sudo docker compose -f docker-compose-monitoring.yml up -d
 
-          # 서비스 시작 대기
           echo "Waiting for services to start..."
           sleep 20
 
@@ -100,19 +105,16 @@ jobs:
         key: ${{ secrets.EC2_KEY }}
         script: |
           cd ~/app
-
-          # 헬스체크 수행 (최대 30초 대기)
           for i in {1..6}; do
             if curl -f http://localhost:8000/health/; then
-              echo "✅ Health check passed!"
+              echo "Health check passed!"
               exit 0
             fi
             echo "Waiting for application to be ready... ($i/6)"
             sleep 5
           done
-          echo "❌ Health check failed!"
-          echo "=== Container Status ==="
-          sudo docker-compose ps
-          echo "=== Backend Logs ==="
-          sudo docker-compose logs --tail 50 backend
+          echo "Health check failed!"
+          sudo docker compose ps
+          sudo docker compose logs --tail 50 backend
+          sudo docker compose logs --tail 20 mysqldb
           exit 1
