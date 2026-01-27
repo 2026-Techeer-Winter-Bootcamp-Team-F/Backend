@@ -471,9 +471,9 @@ class _ExpenseAnalysisPageState extends State<ExpenseAnalysisPage>
       final man = amount ~/ 10000;
       final remainder = amount % 10000;
       if (remainder == 0) {
-        return '${man}만원';
+        return '$man만원';
       }
-      return '${man}만 ${remainder}원';
+      return '$man만 $remainder원';
     }
     return '${amount.toString().replaceAllMapped(
           RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),

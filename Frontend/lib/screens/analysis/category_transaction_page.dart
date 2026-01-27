@@ -181,7 +181,7 @@ class _CategoryTransactionPageState extends State<CategoryTransactionPage> {
                     text: _formatCurrencyFull(widget.change),
                     style: TextStyle(
                       color: widget.change < 0
-                          ? const Color(0xFF4CAF50)
+                          ? const Color(0xFF1560FF)
                           : const Color(0xFFFF5252),
                       fontWeight: FontWeight.w600,
                     ),
@@ -230,9 +230,46 @@ class _CategoryTransactionPageState extends State<CategoryTransactionPage> {
 
   // 거래 내역 리스트
   Widget _buildTransactionList() {
+    // 정렬 적용
+    List<MapEntry<String, List<Map<String, dynamic>>>> sortedEntries;
+    
+    if (selectedSort == '고액순') {
+      // 모든 거래를 하나의 리스트로 합치고 금액순으로 정렬
+      final allTransactions = <Map<String, dynamic>>[];
+      transactions.forEach((date, items) {
+        for (var item in items) {
+          allTransactions.add({...item, 'date': date});
+        }
+      });
+      
+      // 금액 절댓값 기준으로 내림차순 정렬
+      allTransactions.sort((a, b) {
+        final amountA = (a['amount'] as int).abs();
+        final amountB = (b['amount'] as int).abs();
+        return amountB.compareTo(amountA);
+      });
+      
+      // 날짜별로 다시 그룹화
+      final Map<String, List<Map<String, dynamic>>> regrouped = {};
+      for (var item in allTransactions) {
+        final date = item['date'] as String;
+        if (!regrouped.containsKey(date)) {
+          regrouped[date] = [];
+        }
+        final itemCopy = Map<String, dynamic>.from(item);
+        itemCopy.remove('date');
+        regrouped[date]!.add(itemCopy);
+      }
+      
+      sortedEntries = regrouped.entries.toList();
+    } else {
+      // 최신순 (기본)
+      sortedEntries = transactions.entries.toList();
+    }
+    
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 24),
-      children: transactions.entries.map((entry) {
+      children: sortedEntries.map((entry) {
         return _buildDateGroup(entry.key, entry.value);
       }).toList(),
     );
@@ -387,6 +424,6 @@ class _CategoryTransactionPageState extends State<CategoryTransactionPage> {
           RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
           (match) => '${match[1]},',
         );
-    return '${amount < 0 ? '-' : ''}${formatted}원';
+    return '${amount < 0 ? '-' : ''}$formatted원';
   }
 }

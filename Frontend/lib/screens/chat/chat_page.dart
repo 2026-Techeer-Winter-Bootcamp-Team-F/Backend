@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:my_app/config/theme.dart';
+import 'package:my_app/services/chat_service.dart';
 
 class ChatPage extends StatefulWidget {
   const ChatPage({super.key});
@@ -13,6 +14,7 @@ class _ChatPageState extends State<ChatPage> {
   final ScrollController _scrollController = ScrollController();
   final List<ChatMessage> _messages = [];
   bool _isTyping = false;
+  final ChatService _chatService = ChatService();
 
   // 추천 질문들
   final List<String> _suggestedQuestions = [
@@ -45,17 +47,13 @@ class _ChatPageState extends State<ChatPage> {
     super.dispose();
   }
 
-  void _sendMessage() {
+  Future<void> _sendMessage() async {
     final text = _messageController.text.trim();
     if (text.isEmpty) return;
 
     setState(() {
       _messages.add(
-        ChatMessage(
-          text: text,
-          isUser: true,
-          timestamp: DateTime.now(),
-        ),
+        ChatMessage(text: text, isUser: true, timestamp: DateTime.now()),
       );
       _isTyping = true;
     });
@@ -63,14 +61,37 @@ class _ChatPageState extends State<ChatPage> {
     _messageController.clear();
     _scrollToBottom();
 
-    // 더미 AI 응답 (실제로는 API 호출)
-    Future.delayed(const Duration(milliseconds: 1500), () {
+    try {
+      final response = await _chatService.sendMessage(text);
+      // Backend response: { "user_message": {...}, "ai_message": {"message": "...", ...} }
+      // Or sometimes directly list of messages depending on implementation, but defined in ChatView as object.
+      // Let's assume standard format from views.py.
+
+      String aiText = "죄송합니다. 응답을 불러올 수 없습니다.";
+      if (response.containsKey('ai_message') &&
+          response['ai_message'] != null) {
+        aiText = response['ai_message']['message'] ?? aiText;
+      } else if (response.containsKey('message')) {
+        // Fallback if structure is different
+        aiText = response['message'];
+      }
+
+      if (mounted) {
+        setState(() {
+          _isTyping = false;
+          _messages.add(
+            ChatMessage(text: aiText, isUser: false, timestamp: DateTime.now()),
+          );
+        });
+        _scrollToBottom();
+      }
+    } catch (e) {
       if (mounted) {
         setState(() {
           _isTyping = false;
           _messages.add(
             ChatMessage(
-              text: _generateDummyResponse(text),
+              text: "오류가 발생했습니다: $e",
               isUser: false,
               timestamp: DateTime.now(),
             ),
@@ -78,48 +99,7 @@ class _ChatPageState extends State<ChatPage> {
         });
         _scrollToBottom();
       }
-    });
-  }
-
-  String _generateDummyResponse(String question) {
-    if (question.contains('커피') || question.contains('카페')) {
-      return '이번 달 카페 지출을 분석해봤어요.\n\n'
-          '총 카페 지출: 75,000원\n'
-          '- 스타벅스: 42,000원 (8회)\n'
-          '- 투썸플레이스: 18,000원 (4회)\n'
-          '- 기타: 15,000원 (5회)\n\n'
-          '지난달(68,000원)보다 10% 증가했어요. 스타벅스를 자주 가시네요!';
-    } else if (question.contains('카드') && (question.contains('좋은') || question.contains('추천'))) {
-      return '현재 소비 패턴을 분석한 결과, 토스카드를 추천드려요!\n\n'
-          '예상 월간 혜택: 45,000원\n'
-          '- 모든 가맹점 0.5% 적립\n'
-          '- 온라인 결제 추가 0.5%\n\n'
-          '현재 삼성카드(32,000원)보다 월 13,000원 더 받을 수 있어요. '
-          '카드 탭에서 자세한 비교를 확인해보세요!';
-    } else if (question.contains('분석') || question.contains('패턴')) {
-      return '최근 3개월 소비 패턴을 분석했어요.\n\n'
-          '주요 소비 카테고리:\n'
-          '1. 식비 (28%) - 월 평균 52만원\n'
-          '2. 쇼핑 (24%) - 월 평균 45만원\n'
-          '3. 생활 (17%) - 월 평균 32만원\n\n'
-          '특징:\n'
-          '- 주말에 외식 지출이 집중돼요\n'
-          '- 온라인 쇼핑이 80% 이상이에요\n'
-          '- 배달비가 월 4만원 정도 나가요';
-    } else if (question.contains('연회비') || question.contains('아까')) {
-      return '연회비 대비 혜택을 분석했어요.\n\n'
-          '현대카드 M이 연회비 값을 못하고 있어요.\n'
-          '- 연회비: 15,000원\n'
-          '- 받은 혜택: 8,000원 (달성률 20%)\n'
-          '- 월할 손실: -7,000원\n\n'
-          '이 카드는 M포인트 적립 특화인데, '
-          '주로 사용하시는 곳이 적립 제외 가맹점이에요. '
-          '해지를 고려해보시는 게 좋을 것 같아요.';
     }
-
-    return '네, 말씀하신 내용을 확인해볼게요.\n\n'
-        '죄송하지만 현재는 데모 버전이라 실제 데이터 분석이 제한적이에요. '
-        '아래 추천 질문들을 시도해보시거나, 다른 방식으로 질문해주세요!';
   }
 
   void _scrollToBottom() {
@@ -189,8 +169,9 @@ class _ChatPageState extends State<ChatPage> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
-        mainAxisAlignment:
-            message.isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisAlignment: message.isUser
+            ? MainAxisAlignment.end
+            : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (!message.isUser) ...[
@@ -219,10 +200,8 @@ class _ChatPageState extends State<ChatPage> {
                 borderRadius: BorderRadius.only(
                   topLeft: const Radius.circular(16),
                   topRight: const Radius.circular(16),
-                  bottomLeft:
-                      Radius.circular(message.isUser ? 16 : 4),
-                  bottomRight:
-                      Radius.circular(message.isUser ? 4 : 16),
+                  bottomLeft: Radius.circular(message.isUser ? 16 : 4),
+                  bottomRight: Radius.circular(message.isUser ? 4 : 16),
                 ),
                 boxShadow: [
                   BoxShadow(
@@ -281,11 +260,7 @@ class _ChatPageState extends State<ChatPage> {
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
-              children: [
-                _buildDot(0),
-                _buildDot(1),
-                _buildDot(2),
-              ],
+              children: [_buildDot(0), _buildDot(1), _buildDot(2)],
             ),
           ),
         ],
@@ -407,10 +382,7 @@ class _ChatPageState extends State<ChatPage> {
               ),
               child: IconButton(
                 onPressed: _sendMessage,
-                icon: const Icon(
-                  Icons.send,
-                  color: Colors.white,
-                ),
+                icon: const Icon(Icons.send, color: Colors.white),
               ),
             ),
           ],

@@ -115,7 +115,7 @@ class _ConfirmSignupPageState extends State<ConfirmSignupPage> {
               const Text('통신사', style: TextStyle(fontSize: 12, color: Colors.grey)),
               const SizedBox(height: 6),
               DropdownButtonFormField<String>(
-                value: _carrier,
+                initialValue: _carrier,
                 items: _carriers.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
                 onChanged: (v) => setState(() => _carrier = v ?? _carrier),
                 decoration: _fieldDecoration(theme),

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:my_app/screens/bank/bank_selection_page.dart';
-import 'package:my_app/services/api_service.dart';
 
 class PasswordPage extends StatefulWidget {
   final String phone;
@@ -102,28 +101,11 @@ class _PasswordPageState extends State<PasswordPage> with SingleTickerProviderSt
     _animationController.forward();
   }
 
-  void _onComplete() async {
+  void _onComplete() {
     if (!_canComplete) return;
-
-    try {
-      // 1. Signup
-      await ApiService.signup(widget.phone, _pwController.text, widget.name);
-
-      // 2. Login (to get token)
-      await ApiService.login(widget.phone, _pwController.text);
-
-      if (!mounted) return;
-
-      // 3. Navigate
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => BankSelectionPage(name: widget.name)),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('회원가입 실패: ${e.toString().replaceAll("Exception:", "")}')),
-      );
-    }
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => BankSelectionPage(name: widget.name)),
+    );
   }
 
   InputDecoration _buildDecoration({

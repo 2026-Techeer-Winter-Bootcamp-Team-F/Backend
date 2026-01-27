@@ -43,7 +43,7 @@ class _CategoryDetailPageState extends State<CategoryDetailPage> {
       'amount': 345409,
       'change': -835139,
       'percent': 26,
-      'color': Color(0xFF4CAF50),
+      'color': Color(0xFF1560FF),
     },
     {
       'name': '보험·대출·기타금융',
@@ -51,7 +51,7 @@ class _CategoryDetailPageState extends State<CategoryDetailPage> {
       'amount': 281790,
       'change': 281790,
       'percent': 22,
-      'color': Color(0xFF9C27B0),
+      'color': Color(0xFF00BFA5),
     },
     {
       'name': '식비',
@@ -299,19 +299,22 @@ class _CategoryDetailPageState extends State<CategoryDetailPage> {
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Column(
         children: [
-          // 총 지출 금액
+          // 총 지출 금액 (centered, large)
           Text(
             _formatCurrencyFull(totalSpending),
+            textAlign: TextAlign.center,
             style: const TextStyle(
-              fontSize: 32,
-              fontWeight: FontWeight.bold,
+              fontSize: 36,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF394A63),
             ),
           ),
-          
+
           const SizedBox(height: 8),
-          
-          // 지난달 대비 메시지
+
+          // 지난달 대비 메시지 (centered)
           RichText(
+            textAlign: TextAlign.center,
             text: TextSpan(
               style: TextStyle(
                 fontSize: 14,
@@ -322,26 +325,26 @@ class _CategoryDetailPageState extends State<CategoryDetailPage> {
                 TextSpan(
                   text: _formatCurrencyFull(lastMonthDifference.abs()),
                   style: const TextStyle(
-                    color: Color(0xFF4CAF50),
-                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF1560FF),
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
                 const TextSpan(text: ' 덜 썼어요'),
               ],
             ),
           ),
-          
-          const SizedBox(height: 32),
-          
-          // 도넛 차트
+
+          const SizedBox(height: 28),
+
+          // 도넛 차트 (larger)
           SizedBox(
-            height: 200,
+            height: 240,
             child: Stack(
               children: [
                 PieChart(
                   PieChartData(
-                    sectionsSpace: 2,
-                    centerSpaceRadius: 60,
+                    sectionsSpace: 4,
+                    centerSpaceRadius: 70,
                     startDegreeOffset: -90,
                     pieTouchData: PieTouchData(
                       touchCallback: (FlTouchEvent event, pieTouchResponse) {
@@ -361,12 +364,12 @@ class _CategoryDetailPageState extends State<CategoryDetailPage> {
                       final index = entry.key;
                       final data = entry.value;
                       final isSelected = index == selectedCategoryIndex;
-                      
+
                       return PieChartSectionData(
                         color: data['color'] as Color,
                         value: (data['percent'] as int).toDouble(),
                         title: '',
-                        radius: isSelected ? 35 : 30,
+                        radius: isSelected ? 44 : 38,
                       );
                     }).toList(),
                   ),
@@ -377,18 +380,19 @@ class _CategoryDetailPageState extends State<CategoryDetailPage> {
                     children: [
                       Text(
                         selectedCategory['icon'] as String,
-                        style: const TextStyle(fontSize: 32),
+                        style: const TextStyle(fontSize: 36),
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 6),
                       Text(
                         '${selectedCategory['percent']}%',
                         style: const TextStyle(
-                          fontSize: 24,
+                          fontSize: 28,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
+                      const SizedBox(height: 4),
                       Text(
-                        '...',
+                        selectedCategory['name'] as String,
                         style: TextStyle(
                           fontSize: 12,
                           color: Colors.grey[600],
@@ -400,8 +404,8 @@ class _CategoryDetailPageState extends State<CategoryDetailPage> {
               ],
             ),
           ),
-          
-          const SizedBox(height: 32),
+
+          const SizedBox(height: 24),
           
           // 카테고리 목록
           ...categoryData.asMap().entries.map((entry) {
@@ -443,14 +447,11 @@ class _CategoryDetailPageState extends State<CategoryDetailPage> {
         : '${change > 0 ? '+' : ''}${_formatCurrencyFull(change)}';
     final changeColor = change == 0
         ? Colors.grey
-        : (change > 0 ? const Color(0xFFFF5252) : const Color(0xFF4CAF50));
+        : (change > 0 ? const Color(0xFFFF5252) : const Color(0xFF1560FF));
     
     return GestureDetector(
       onTap: () {
-        // 선택 상태 업데이트
         if (onTap != null) onTap();
-        
-        // 거래 내역 페이지로 이동
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -466,21 +467,25 @@ class _CategoryDetailPageState extends State<CategoryDetailPage> {
         );
       },
       child: Container(
-        margin: const EdgeInsets.only(bottom: 16),
-        padding: const EdgeInsets.all(12),
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: isSelected ? color.withOpacity(0.05) : Colors.transparent,
+          color: isSelected ? Colors.white : Colors.grey[50],
           borderRadius: BorderRadius.circular(12),
+          border: isSelected ? Border.all(color: color, width: 2) : null,
+          boxShadow: isSelected
+              ? [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0,2))]
+              : null,
         ),
         child: Row(
           children: [
             Container(
-              width: 40,
-              height: 40,
+              width: 44,
+              height: 44,
               decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-                border: isSelected ? Border.all(color: color, width: 2) : null,
+                color: isSelected ? color.withOpacity(0.12) : color.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(10),
+                border: isSelected ? Border.all(color: color, width: 1.5) : null,
               ),
               child: Center(
                 child: Text(icon, style: const TextStyle(fontSize: 20)),
@@ -497,8 +502,8 @@ class _CategoryDetailPageState extends State<CategoryDetailPage> {
                         name,
                         style: TextStyle(
                           fontSize: 14,
-                          fontWeight:
-                              isSelected ? FontWeight.w600 : FontWeight.w500,
+                          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                          color: isSelected ? Colors.black : Colors.grey[800],
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -511,7 +516,7 @@ class _CategoryDetailPageState extends State<CategoryDetailPage> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 6),
                   Text(
                     changeText,
                     style: TextStyle(
@@ -523,12 +528,15 @@ class _CategoryDetailPageState extends State<CategoryDetailPage> {
               ),
             ),
             Text(
-              '${_formatCurrencyFull(amount)} >',
-              style: const TextStyle(
+              _formatCurrencyFull(amount),
+              style: TextStyle(
                 fontSize: 14,
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w700,
+                color: Colors.grey[800],
               ),
             ),
+            const SizedBox(width: 6),
+            const Icon(Icons.chevron_right, color: Colors.black26),
           ],
         ),
       ),
@@ -545,7 +553,7 @@ class _CategoryDetailPageState extends State<CategoryDetailPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            '이*진 님은',
+            '김용진 님은',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w600,
@@ -687,7 +695,7 @@ class _CategoryDetailPageState extends State<CategoryDetailPage> {
                 ),
                 const SizedBox(height: 4),
                 const Text(
-                  '**님의 카드를 분석해봤어요!',
+                  '용진님의 카드를 분석해봤어요!',
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
@@ -710,6 +718,6 @@ class _CategoryDetailPageState extends State<CategoryDetailPage> {
           RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
           (match) => '${match[1]},',
         );
-    return '${amount < 0 ? '-' : ''}${formatted}원';
+    return '${amount < 0 ? '-' : ''}$formatted원';
   }
 }

@@ -219,6 +219,6 @@ class SubscriptionCard extends StatelessWidget {
     final s = amount.toString();
     // simple thousands separator
     final reg = RegExp(r'\B(?=(\d{3})+(?!\d))');
-    return s.replaceAllMapped(reg, (m) => ',') + '원';
+    return '${s.replaceAllMapped(reg, (m) => ',')}원';
   }
 }

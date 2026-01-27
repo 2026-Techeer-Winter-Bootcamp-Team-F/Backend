@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:my_app/screens/login/signup_complete_page.dart';
+import 'package:my_app/screens/cards/card_connect_page.dart';
 
 class BankSelectionPage extends StatefulWidget {
   final String name;
@@ -27,8 +27,13 @@ class _BankSelectionPageState extends State<BankSelectionPage> {
 
   void _onConnect() {
     if (_selectedIndex == null) return;
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => SignupCompletePage(name: widget.name)),
+
+    final selectedBank = banks[_selectedIndex!];
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) =>
+            CardConnectPage(bankName: selectedBank.name, userName: widget.name),
+      ),
     );
   }
 
@@ -44,7 +49,10 @@ class _BankSelectionPageState extends State<BankSelectionPage> {
               const SizedBox(height: 8),
               const Center(child: FlutterLogo(size: 72)),
               const SizedBox(height: 24),
-              const Text('은행을 선택해주세요.', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+              const Text(
+                '은행을 선택해주세요.',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+              ),
               const SizedBox(height: 18),
               Expanded(
                 child: GridView.builder(
@@ -63,9 +71,14 @@ class _BankSelectionPageState extends State<BankSelectionPage> {
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 160),
                         decoration: BoxDecoration(
-                          color: selected ? Colors.blue.shade50 : Colors.grey.shade100,
+                          color: selected
+                              ? Colors.blue.shade50
+                              : Colors.grey.shade100,
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: selected ? Colors.blue : Colors.transparent, width: 1.5),
+                          border: Border.all(
+                            color: selected ? Colors.blue : Colors.transparent,
+                            width: 1.5,
+                          ),
                         ),
                         padding: const EdgeInsets.all(12),
                         child: Column(
@@ -74,7 +87,13 @@ class _BankSelectionPageState extends State<BankSelectionPage> {
                             CircleAvatar(
                               radius: 22,
                               backgroundColor: b.color,
-                              child: Text(b.name[0], style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                              child: Text(
+                                b.name[0],
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                             ),
                             const SizedBox(height: 8),
                             Text(b.name, style: const TextStyle(fontSize: 12)),
@@ -93,9 +112,14 @@ class _BankSelectionPageState extends State<BankSelectionPage> {
                     minimumSize: const Size.fromHeight(56),
                     backgroundColor: const Color(0xFF1787FF),
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
-                  child: const Text('카드사 연결하기', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                  child: const Text(
+                    '카드사 연결하기',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
                 ),
               ),
             ],

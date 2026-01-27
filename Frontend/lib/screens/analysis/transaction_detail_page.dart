@@ -198,7 +198,7 @@ class _TransactionDetailPageState extends State<TransactionDetailPage> {
           Row(
             children: [
               Expanded(
-                child: _buildStatItem('거래횟수', '${totalTransactionCount}회'),
+                child: _buildStatItem('거래횟수', '$totalTransactionCount회'),
               ),
               Container(
                 width: 1,
@@ -353,6 +353,6 @@ class _TransactionDetailPageState extends State<TransactionDetailPage> {
           RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
           (match) => '${match[1]},',
         );
-    return '${amount < 0 ? '-' : ''}${formatted}원';
+    return '${amount < 0 ? '-' : ''}$formatted원';
   }
 }
