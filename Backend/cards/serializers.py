@@ -80,5 +80,43 @@ class RecommendedCardSerializer(serializers.ModelSerializer):
             
             # 실제 CardBenefit 테이블에 연결하여 저장
             CardBenefit.objects.create(card=card, category=category_obj, **benefit)
-            
+
         return card
+
+
+# 카드 추천 API용 시리얼라이저
+class CategoryBenefitSerializer(serializers.Serializer):
+    """카테고리별 혜택 정보"""
+    category = serializers.CharField()
+    description = serializers.CharField()
+    discount_rate = serializers.DecimalField(max_digits=5, decimal_places=2)
+
+
+class RecommendedCardDetailSerializer(serializers.Serializer):
+    """추천 카드 상세 정보"""
+    card_id = serializers.IntegerField()
+    card_name = serializers.CharField()
+    card_company = serializers.CharField()
+    card_image_url = serializers.CharField()
+    annual_fee = serializers.IntegerField()
+    roi_percent = serializers.FloatField()
+    estimated_annual_benefit = serializers.IntegerField()
+    main_benefits = serializers.ListField(child=serializers.CharField())
+    category_benefits = CategoryBenefitSerializer(many=True)
+
+
+class CategoryRecommendationSerializer(serializers.Serializer):
+    """카테고리별 추천 정보"""
+    category_name = serializers.CharField()
+    emoji = serializers.CharField()
+    color = serializers.CharField()
+    monthly_average = serializers.IntegerField()
+    total_spent = serializers.IntegerField()
+    recommended_cards = RecommendedCardDetailSerializer(many=True)
+
+
+class CardRecommendationsResponseSerializer(serializers.Serializer):
+    """전체 카드 추천 응답"""
+    generated_at = serializers.DateTimeField()
+    analysis_period = serializers.DictField()
+    categories = CategoryRecommendationSerializer(many=True)
